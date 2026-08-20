@@ -1,56 +1,95 @@
-# Welcome to your Expo app 👋
+# RespiraJá 🫁
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+RespiraJá é um aplicativo móvel *offline-first* voltado para exercícios respiratórios guiados e acompanhamento de bem-estar.
 
-## Get started
+## 🎯 Objetivo
 
-1. Install dependencies
+Permitir que o usuário realize exercícios respiratórios de maneira guiada, registre as sessões realizadas e acompanhe sua evolução localmente. O aplicativo foi desenhado com foco em simplicidade, acessibilidade e respeito à privacidade (todos os dados permanecem no dispositivo).
 
+**Aviso:** O RespiraJá é uma ferramenta de bem-estar e não substitui acompanhamento médico ou terapia profissional.
+
+## 🛠️ Stack Tecnológico
+
+- **React Native** (0.86+) & **Expo** (~57.0)
+- **TypeScript** (Strict mode)
+- **Navegação:** `@react-navigation/native` (Bottom Tabs & Native Stack)
+- **Estado e Persistência:** `zustand` + `@react-native-async-storage/async-storage`
+- **Ícones:** `lucide-react-native`
+
+## 🏗️ Arquitetura (Feature-Sliced Design)
+
+O projeto adota os princípios do Feature-Sliced Design (FSD), focado em manter o código altamente modular e as responsabilidades isoladas.
+
+```
+src/app/
+├── features/               # Funcionalidades modulares
+│   ├── onboarding/         # Tela de splash e introdução
+│   ├── dashboard/          # Resumo do progresso diário
+│   ├── breathing/          # Core: Padrões, timer, state machine
+│   ├── history/            # Histórico de sessões passadas
+│   ├── evolution/          # Estatísticas e evolução no tempo
+│   └── profile/            # Configurações do usuário e limpeza de dados
+│
+├── navigation/             # Configuração de rotas (@react-navigation)
+│   ├── RootNavigator.tsx
+│   └── MainTabNavigator.tsx
+│
+└── shared/                 # Código reutilizável entre as features
+    ├── components/         # Button, Card, Screen, Typography
+    ├── theme/              # Cores, espaçamento e tipografia base
+    └── types/              # Tipos transversais (ex: navigation param list)
+```
+
+### Regras de Ouro
+1. **Screens:** Apenas apresentam a UI e interagem com Hooks. Nunca acessam `AsyncStorage` diretamente.
+2. **Hooks/Services:** Lidam com regras de negócio (ex: `useBreathingSession.ts` controla a máquina de estado do timer de respiração independente da UI).
+3. **Store:** Gerencia o estado reativo global e hidratação local (`zustand`).
+
+## 📶 Funcionamento Offline-First
+
+O aplicativo foi projetado para funcionar 100% sem internet. 
+Não há requisições externas, APIs ou Firebase. Todas as configurações do perfil e sessões respiratórias são persistidas no próprio dispositivo do usuário através do `AsyncStorage` via middlewares do Zustand.
+
+## 🚀 Como Executar
+
+1. **Instalar dependências:**
    ```bash
    npm install
    ```
-
-2. Start the app
-
+2. **Iniciar o servidor do Expo:**
    ```bash
+   npm start
+   # ou
    npx expo start
    ```
+3. **Visualizar:**
+   - Para Android: Pressione `a` no terminal ou use o aplicativo Expo Go via QR Code.
+   - Para iOS: Pressione `i` no terminal para abrir no Simulador iOS.
 
-In the output, you'll find options to open the app in a
+## ✅ Como Executar Validações
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
+O projeto utiliza TypeScript estrito. Para validar a tipagem em toda a base de código:
 ```bash
-npm run reset-project
+npx tsc --noEmit
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## ➕ Como Adicionar um Novo Exercício Respiratório
 
-### Other setup steps
+A adição de novos padrões não exige criação de telas novas. Basta editar o arquivo central de serviços do domínio de respiração:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+**Arquivo:** `src/app/features/breathing/services/breathingPatterns.ts`
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+**Exemplo de adição:**
+```typescript
+{
+  id: 'novo-exercicio',
+  name: 'Respiração Rápida',
+  description: 'Um exercício para ganhar energia rapidamente.',
+  duration: 180, // 3 minutos
+  steps: [
+    { phase: 'inhale', duration: 2 },
+    { phase: 'exhale', duration: 2 },
+  ],
+}
+```
+A máquina de estado (`useBreathingSession`) e a UI (`SessaoRespiracaoScreen`) se adaptarão automaticamente aos novos passos e durações.
