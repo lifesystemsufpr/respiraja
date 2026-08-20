@@ -11,6 +11,7 @@ interface BreathingSessionState {
 }
 
 export const useBreathingSession = (exercise: BreathingExercise) => {
+  const [sessionKey, setSessionKey] = useState(0);
   const [state, setState] = useState<BreathingSessionState>({
     status: 'idle',
     phase: exercise.steps[0].phase,
@@ -74,12 +75,23 @@ export const useBreathingSession = (exercise: BreathingExercise) => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [state.status, exercise]);
+  }, [state.status, exercise, sessionKey]);
 
   const start = () => setState((s) => ({ ...s, status: 'running' }));
   const pause = () => setState((s) => ({ ...s, status: 'paused' }));
   const resume = () => setState((s) => ({ ...s, status: 'running' }));
   const stop = () => setState((s) => ({ ...s, status: 'completed' }));
+  const reset = () => {
+    setSessionKey((prev) => prev + 1);
+    setState({
+      status: 'running', // Auto-start ao resetar
+      phase: exercise.steps[0].phase,
+      remainingSeconds: exercise.steps[0].duration,
+      currentStepIndex: 0,
+      currentCycle: 1,
+      totalElapsedSeconds: 0,
+    });
+  };
 
   return {
     state,
@@ -87,5 +99,7 @@ export const useBreathingSession = (exercise: BreathingExercise) => {
     pause,
     resume,
     stop,
+    reset,
+    sessionKey,
   };
 };

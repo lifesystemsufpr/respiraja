@@ -5,7 +5,6 @@ export type MainTabParamList = {
   Exercicios: undefined;
   Historico: undefined;
   Evolucao: undefined;
-  Perfil: undefined;
 };
 
 export type RootStackParamList = {

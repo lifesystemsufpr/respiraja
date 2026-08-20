@@ -1,119 +1,150 @@
 import React, { useMemo } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { Activity, Clock, Smile, Calendar } from 'lucide-react-native';
-
+import { View, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
 import { Screen } from '../../../shared/components/Screen';
-import { Typography } from '../../../shared/components/Typography';
-import { Card } from '../../../shared/components/Card';
+import { ProgressHeader } from '../components/ProgressHeader';
+import { StreakCard } from '../components/StreakCard';
+import { TotalTimeCard } from '../components/TotalTimeCard';
+import { WeeklySessionsCard, WeeklyData } from '../components/WeeklySessionsCard';
+import { FavoriteExercisesCard, ExerciseStat } from '../components/FavoriteExercisesCard';
+
 import { useBreathingStore } from '../../breathing/store/breathingStore';
-import { colors, spacing } from '../../../shared/theme';
+import { breathingExercises } from '../../breathing/services/breathingPatterns';
 
 export const EvolucaoScreen = () => {
   const sessions = useBreathingStore((state) => state.sessions);
 
-  const stats = useMemo(() => {
-    const totalSessions = sessions.length;
-    const totalMinutes = Math.floor(
-      sessions.reduce((acc, curr) => acc + curr.duration, 0) / 60
-    );
+  // Helper date formatter
+  const toDateString = (dateInput: string | Date | number) => {
+    const d = new Date(dateInput);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  // 1. Calculate Streak
+  const streakDays = useMemo(() => {
+    if (!sessions || sessions.length === 0) return 0;
+
+    const uniqueDatesStr = [...new Set(sessions.map(s => toDateString(s.finishedAt)))];
+    uniqueDatesStr.sort((a, b) => b.localeCompare(a));
+
+    const today = new Date();
+    const todayStr = toDateString(today);
     
-    const sessionsWithMood = sessions.filter(s => s.moodAfter !== undefined);
-    const avgMood = sessionsWithMood.length > 0
-      ? (sessionsWithMood.reduce((acc, curr) => acc + (curr.moodAfter || 0), 0) / sessionsWithMood.length).toFixed(1)
-      : '-';
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = toDateString(yesterday);
 
-    // Simple streak calculation (just unique days for MVP)
-    const uniqueDays = new Set(
-      sessions.map(s => new Date(s.finishedAt).toDateString())
-    ).size;
+    const mostRecentStr = uniqueDatesStr[0];
 
-    return { totalSessions, totalMinutes, avgMood, uniqueDays };
+    if (mostRecentStr !== todayStr && mostRecentStr !== yesterdayStr) {
+      return 0;
+    }
+
+    let streak = 1;
+    let dateTracker = new Date(today);
+    
+    if (mostRecentStr === yesterdayStr) {
+        dateTracker = new Date(yesterday);
+    }
+    
+    for (let i = 1; i < uniqueDatesStr.length; i++) {
+      dateTracker.setDate(dateTracker.getDate() - 1);
+      const expectedPrevStr = toDateString(dateTracker);
+
+      if (uniqueDatesStr[i] === expectedPrevStr) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }, [sessions]);
+
+  // 2. Calculate Total Time (hours)
+  const totalTimeHours = useMemo(() => {
+    const totalSeconds = sessions.reduce((acc, curr) => acc + curr.duration, 0);
+    return totalSeconds / 3600;
+  }, [sessions]);
+
+  // 3. Weekly Data (Mon - Sun)
+  const weeklyData = useMemo<WeeklyData[]>(() => {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 is Sunday, 1 is Monday...
+    const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - diffToMonday);
+    
+    const daysLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+    
+    return daysLabels.map((label, index) => {
+      const currentDay = new Date(startOfWeek);
+      currentDay.setDate(startOfWeek.getDate() + index);
+      const currentDayStr = toDateString(currentDay);
+      
+      const count = sessions.filter(s => toDateString(s.finishedAt) === currentDayStr).length;
+      
+      return {
+        day: label,
+        count,
+        isToday: currentDayStr === toDateString(today)
+      };
+    });
+  }, [sessions]);
+
+  // 4. Favorite Exercises
+  const favoriteExercisesData = useMemo<ExerciseStat[]>(() => {
+    if (sessions.length === 0) return [];
+    
+    const exerciseCounts: Record<string, number> = {};
+    sessions.forEach(s => {
+      exerciseCounts[s.exerciseId] = (exerciseCounts[s.exerciseId] || 0) + 1;
+    });
+    
+    const totalSessions = sessions.length;
+    const favoriteStats = Object.keys(exerciseCounts).map(id => {
+      const ex = breathingExercises.find(e => e.id === id);
+      return {
+        id,
+        name: ex ? ex.name : id,
+        percentage: (exerciseCounts[id] / totalSessions) * 100,
+        count: exerciseCounts[id]
+      };
+    }).sort((a, b) => b.count - a.count);
+
+    const colorsList = ['#1557E8', '#2F6ED8', '#E85D24', '#F6AD55'];
+    
+    return favoriteStats.slice(0, 3).map((stat, idx) => ({
+      ...stat,
+      color: colorsList[idx] || colorsList[0]
+    }));
   }, [sessions]);
 
   return (
-    <Screen>
+    <Screen safeArea style={styles.screen}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <View style={styles.header}>
-          <Typography variant="h2">Evolução</Typography>
-          <Typography variant="body" color={colors.muted}>
-            Acompanhe seu progresso ao longo do tempo
-          </Typography>
-        </View>
+        <ProgressHeader />
+        
+        <StreakCard streak={streakDays} />
+        <TotalTimeCard totalHours={totalTimeHours} />
 
-        {sessions.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Typography variant="body" color={colors.muted} align="center">
-              Continue praticando para visualizar sua evolução.
-            </Typography>
-          </View>
-        ) : (
-          <View style={styles.grid}>
-            <Card style={styles.statCard}>
-              <View style={styles.iconContainer}>
-                <Activity color={colors.primary} size={24} />
-              </View>
-              <Typography variant="h2">{stats.totalSessions}</Typography>
-              <Typography variant="caption" align="center">Sessões totais</Typography>
-            </Card>
-
-            <Card style={styles.statCard}>
-              <View style={styles.iconContainer}>
-                <Clock color={colors.primary} size={24} />
-              </View>
-              <Typography variant="h2">{stats.totalMinutes}m</Typography>
-              <Typography variant="caption" align="center">Tempo total</Typography>
-            </Card>
-
-            <Card style={styles.statCard}>
-              <View style={styles.iconContainer}>
-                <Smile color={colors.primary} size={24} />
-              </View>
-              <Typography variant="h2">{stats.avgMood}</Typography>
-              <Typography variant="caption" align="center">Humor médio</Typography>
-            </Card>
-
-            <Card style={styles.statCard}>
-              <View style={styles.iconContainer}>
-                <Calendar color={colors.primary} size={24} />
-              </View>
-              <Typography variant="h2">{stats.uniqueDays}</Typography>
-              <Typography variant="caption" align="center">Dias de prática</Typography>
-            </Card>
-          </View>
+        <WeeklySessionsCard data={weeklyData} />
+        
+        {favoriteExercisesData.length > 0 && (
+          <FavoriteExercisesCard data={favoriteExercisesData} />
         )}
+
       </ScrollView>
     </Screen>
   );
 };
 
 const styles = StyleSheet.create({
+  screen: {
+    backgroundColor: '#FAF8FF',
+    flex: 1,
+  },
   scroll: {
-    paddingBottom: spacing.xxl,
-  },
-  header: {
-    marginVertical: spacing.lg,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  statCard: {
-    width: '48%',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#E6F4FE',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  emptyContainer: {
-    marginTop: spacing.xxl,
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 32,
   },
 });
